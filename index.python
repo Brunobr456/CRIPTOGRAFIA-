@@ -1,0 +1,86 @@
+from flask import Flask, render_template, request, jsonify
+from cryptography.fernet import Fernet
+import hashlib
+import base64
+import os
+
+app = Flask(__name__)
+
+# Gera uma chave fixa para o projeto
+KEY_FILE = "chave.key"
+
+if os.path.exists(KEY_FILE):
+    with open(KEY_FILE, "rb") as arquivo:
+        chave = arquivo.read()
+else:
+    chave = Fernet.generate_key()
+    with open(KEY_FILE, "wb") as arquivo:
+        arquivo.write(chave)
+
+fernet = Fernet(chave)
+
+
+@app.route("/")
+def inicio():
+    return render_template("index.html")
+
+
+@app.route("/criptografar", methods=["POST"])
+def criptografar():
+    dados = request.get_json()
+    mensagem = dados.get("mensagem", "")
+
+    if not mensagem:
+        return jsonify({"erro": "Digite uma mensagem."}), 400
+
+    mensagem_criptografada = fernet.encrypt(
+        mensagem.encode()
+    ).decode()
+
+    return jsonify({
+        "resultado": mensagem_criptografada
+    })
+
+
+@app.route("/descriptografar", methods=["POST"])
+def descriptografar():
+    dados = request.get_json()
+    mensagem = dados.get("mensagem", "")
+
+    if not mensagem:
+        return jsonify({"erro": "Digite uma mensagem criptografada."}), 400
+
+    try:
+        mensagem_original = fernet.decrypt(
+            mensagem.encode()
+        ).decode()
+
+        return jsonify({
+            "resultado": mensagem_original
+        })
+
+    except Exception:
+        return jsonify({
+            "erro": "Não foi possível descriptografar a mensagem."
+        }), 400
+
+
+@app.route("/hash", methods=["POST"])
+def gerar_hash():
+    dados = request.get_json()
+    mensagem = dados.get("mensagem", "")
+
+    if not mensagem:
+        return jsonify({"erro": "Digite uma mensagem."}), 400
+
+    hash_sha256 = hashlib.sha256(
+        mensagem.encode()
+    ).hexdigest()
+
+    return jsonify({
+        "resultado": hash_sha256
+    })
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
